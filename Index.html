@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Recepción (test)</title>
+
+<style>
+  body{font-family:Arial;background:#fafafa;padding:18px}
+  .card{max-width:540px;margin:auto;background:#fff;border:1px solid #d0d7de;border-radius:12px;padding:16px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+  button{padding:10px 12px;border-radius:10px;border:2px solid #d0d7de;background:#fff;font-weight:800;cursor:pointer}
+  button.active{background:#111;color:#fff;border-color:#111}
+  input[type="text"],input[type="number"]{
+    height:42px;border-radius:10px;border:2px solid #d0d7de;padding:0 10px;font-size:16px
+  }
+  input[type="text"]{width:130px;text-align:center;letter-spacing:4px}
+  .send{background:#111;color:#fff;border:0;opacity:.45}
+  .send.enabled{opacity:1}
+  .status{margin-top:10px;font-size:14px}
+  .ok{color:#0a7a2f;font-weight:800}
+  .bad{color:#b42318}
+
+  /* ===== Modal ===== */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px}
+  .overlay.open{display:flex}
+  .modal{
+    width:min(560px, 100%);
+    max-height:90vh;           /* altura máxima */
+    overflow-y:auto;           /* scroll vertical */
+    background:#fff;
+    border:1px solid #d0d7de;
+    border-radius:14px;
+    padding:14px;
+    box-shadow:0 18px 50px rgba(0,0,0,.2);
+  }
+  .modal-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+  .modal-title{font-weight:900}
+  .xbtn{border:2px solid #d0d7de;background:#fff;border-radius:10px;padding:8px 10px;cursor:pointer;font-weight:900}
+  .grid{display:grid;grid-template-columns: 1fr 140px;gap:10px;align-items:center}
+  .grid .h{font-weight:900;font-size:13px;color:#333}
+  .line{display:contents}
+  .line input[type="text"]{width:100%;text-align:left;letter-spacing:0}
+  .line input[type="number"]{width:100%}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
+  .btn-primary{background:#111;color:#fff;border:0}
+  .btn-secondary{background:#fff}
+  .hint{font-size:12px;color:#444;margin:8px 0 0}
+
+  #sendModal:disabled, #enviar:disabled, #okBtn:disabled{opacity:.55; cursor:not-allowed}
+
+  /* form hidden */
+  .hidden{display:none}
+
+  /* Success panel */
+  .successBox{
+    display:none;
+    margin-top:12px;
+    border:2px solid #c7e8d1;
+    background:#f3fbf6;
+    border-radius:12px;
+    padding:12px;
+  }
+  .successBox .title{font-weight:900;margin:0 0 6px}
+  .successCode{
+    font-size:22px;
+    font-weight:900;
+    letter-spacing:2px;
+    margin:6px 0 10px;
+  }
+  .okBtn{
+    background:#111;color:#fff;border:0;
+    padding:10px 14px;border-radius:10px;font-weight:900;
+  }
+
+  /* Readonly code styling */
+  .codeRO{background:#f6f8fa}
+</style>
+</head>
+
+<body>
+<div class="card">
+  <h2 style="margin:0 0 10px">Recepción (prueba)</h2>
+
+  <div class="row">
+    <button id="lk" type="button">LK</button>
+    <button id="ch" type="button">CH</button>
+  </div>
+
+  <div class="row">
+    <div style="font-weight:800;align-self:center">Cod Tall/Prov</div>
+    <input id="codProveedor" type="text" maxlength="4" placeholder="0000" inputmode="numeric">
+  </div>
+
+  <div class="row">
+    <label style="display:flex;align-items:center;gap:8px;font-weight:800">
+      <input id="c1" type="checkbox"> Carga a ISIS
+    </label>
+  </div>
+
+  <div class="row">
+    <button id="enviar" class="send" type="button" disabled>Enviar</button>
+  </div>
+
+  <div id="status" class="status bad">Completá todo para continuar.</div>
+
+  <!-- ✅ Éxito + OK -->
+  <div id="successBox" class="successBox">
+    <div class="title">Envío registrado</div>
+    <div>Tu código de envío:</div>
+    <div id="successCode" class="successCode">—</div>
+    <button id="okBtn" class="okBtn" type="button">OK</button>
+  </div>
+
+  <!-- ✅ POST sin CORS: iframe + form oculto -->
+  <iframe name="sheet_iframe" style="display:none"></iframe>
+  <form id="sheetForm" action="https://script.google.com/macros/s/AKfycbwm8qyUDOAlyb8WlP9chyxupv_xqp9_hs3jDiVLQDfrKCQtywl--tGKHuT-DMCtJDGO/exec" method="POST" target="sheet_iframe" class="hidden">
+    <input type="hidden" name="payload" id="payloadField" value="">
+  </form>
+</div>
+
+<!-- ===== POPUP / MODAL ===== -->
+<div id="overlay" class="overlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-header">
+      <div id="modalTitle" class="modal-title">Código y Cajas</div>
+      <button id="closeModal" class="xbtn" type="button">✕</button>
+    </div>
+
+    <div class="grid" style="margin-bottom:8px">
+      <div class="h">Código</div>
+      <div class="h">Cajas</div>
+    </div>
+
+    <div id="lines" class="grid"></div>
+
+    <div class="hint">Tip: solo completá cajas (solo números).</div>
+
+    <div class="modal-actions">
+      <button id="cancelModal" class="xbtn btn-secondary" type="button">Cancelar</button>
+      <button id="sendModal" class="xbtn btn-primary" type="button">Enviar</button>
+    </div>
+
+    <div id="modalMsg" class="status" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- ✅ Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+<script>
+  // ===== Config =====
+  const SUCURSAL = "Virg"; // ✅ oculto (no se muestra)
+
+  // ✅ Supabase (REEMPLAZAR)
+  const SUPABASE_URL = "https://hrxfctzncixxqmpfhskv.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_BqpAgZH6ty-9wft10_YMhw_0rcIPuWT";
+
+  // ✅ Tabla/columnas (AJUSTAR a tu esquema real)
+  const SUPABASE_TABLE = "Control Partes Talleristas";
+  const COL_TALLERISTA = "Cod_Tallerista";
+  const COL_CODIGO = "Cod_Art";
+  // ==================
+
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const lk = document.getElementById("lk");
+  const ch = document.getElementById("ch");
+  const cod = document.getElementById("codProveedor");
+  const c1 = document.getElementById("c1");
+  const enviar = document.getElementById("enviar");
+  const status = document.getElementById("status");
+
+  // success
+  const successBox = document.getElementById("successBox");
+  const successCodeEl = document.getElementById("successCode");
+  const okBtn = document.getElementById("okBtn");
+
+  // modal
+  const overlay = document.getElementById("overlay");
+  const closeModal = document.getElementById("closeModal");
+  const cancelModal = document.getElementById("cancelModal");
+  const sendModal = document.getElementById("sendModal");
+  const linesWrap = document.getElementById("lines");
+  const modalMsg = document.getElementById("modalMsg");
+
+  // sheet form
+  const sheetForm = document.getElementById("sheetForm");
+  const payloadField = document.getElementById("payloadField");
+  const iframe = document.querySelector('iframe[name="sheet_iframe"]');
+
+  let empresa = null;
+  let isSubmitting = false;
+  let lastSendCode = null;
+  let fetchedCodes = []; // códigos traídos de supabase
+
+  function selectEmpresa(v){
+    empresa = v;
+    lk.classList.toggle("active", v === "LK");
+    ch.classList.toggle("active", v === "CH");
+    update();
+  }
+  lk.onclick = () => selectEmpresa("LK");
+  ch.onclick = () => selectEmpresa("CH");
+
+  cod.oninput = () => { cod.value = cod.value.replace(/\D/g,"").slice(0,4); update(); };
+  c1.onchange = update;
+
+  function ready(){
+    return !isSubmitting && !!empresa && cod.value.length===4 && c1.checked;
+  }
+
+  function update(){
+    const ok = ready();
+    enviar.disabled = !ok;
+    enviar.classList.toggle("enabled", ok);
+    status.className = "status " + (ok ? "ok" : "bad");
+    status.textContent = ok ? "Listo para continuar." : "Completá todo para continuar.";
+  }
+
+  // ===== Helpers =====
+  function arDateISO(){
+    const fmt = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    });
+    return fmt.format(new Date());
+  }
+
+  // ✅ Código aleatorio numérico (10 dígitos)
+  function genNumericCode(len=10){
+    const min = Math.pow(10, len-1);
+    const max = Math.pow(10, len) - 1;
+    return String(Math.floor(min + Math.random() * (max - min + 1)));
+  }
+
+  function showSuccess(code){
+    successCodeEl.textContent = code;
+    successBox.style.display = "block";
+  }
+
+  function hideSuccess(){
+    successBox.style.display = "none";
+    successCodeEl.textContent = "—";
+  }
+
+  function closeModalFn(){
+    overlay.classList.remove("open");
+    overlay.setAttribute("aria-hidden","true");
+  }
+
+  function openModalFn(){
+    modalMsg.textContent = "";
+    modalMsg.className = "status";
+    overlay.classList.add("open");
+    overlay.setAttribute("aria-hidden","false");
+  }
+
+  function resetAll(){
+    empresa = null;
+    lk.classList.remove("active");
+    ch.classList.remove("active");
+    cod.value = "";
+    c1.checked = false;
+
+    closeModalFn();
+    linesWrap.innerHTML = "";
+    modalMsg.textContent = "";
+    modalMsg.className = "status";
+
+    isSubmitting = false;
+    lastSendCode = null;
+    fetchedCodes = [];
+
+    sendModal.disabled = false;
+    closeModal.disabled = false;
+    cancelModal.disabled = false;
+
+    hideSuccess();
+    update();
+  }
+
+  okBtn.onclick = () => resetAll();
+
+  // ===== Supabase fetch =====
+  async function fetchCodesForTallerista(tallerista4){
+    const { data, error } = await sb
+      .from(SUPABASE_TABLE)
+      .select(COL_CODIGO)
+      .eq(COL_TALLERISTA, tallerista4)
+      .order(COL_CODIGO, { ascending: true });
+
+    if (error) throw error;
+
+    // normalizar / únicos
+    const codes = (data || [])
+      .map(r => String(r[COL_CODIGO] ?? "").trim())
+      .filter(Boolean);
+
+    return Array.from(new Set(codes));
+  }
+
+  function buildModalLinesWithCodes(codes){
+    linesWrap.innerHTML = "";
+
+    if (!codes.length){
+      // mostrás mensaje y evitás enviar
+      const msg = document.createElement("div");
+      msg.style.gridColumn = "1 / -1";
+      msg.className = "status bad";
+      msg.textContent = "No hay códigos asociados a ese tallerista.";
+      linesWrap.appendChild(msg);
+      return;
+    }
+
+    codes.forEach((codigo, i) => {
+      // Código readonly
+      const code = document.createElement("input");
+      code.type = "text";
+      code.value = codigo;
+      code.readOnly = true;
+      code.className = "codeRO";
+      code.setAttribute("data-role","codigo");
+      code.setAttribute("data-idx", String(i));
+
+      // Cajas (solo números)
+      const cajas = document.createElement("input");
+      cajas.type = "text";                 // <- para controlar mejor el input
+      cajas.inputMode = "numeric";
+      cajas.placeholder = "0";
+      cajas.setAttribute("data-role","cajas");
+      cajas.setAttribute("data-idx", String(i));
+
+      cajas.addEventListener("input", () => {
+        // ✅ solo dígitos
+        cajas.value = cajas.value.replace(/[^\d]/g, "");
+      });
+
+      cajas.addEventListener("keydown", (e) => {
+        if (e.key === "Enter"){
+          e.preventDefault();
+          const next = linesWrap.querySelector(`input[data-role="cajas"][data-idx="${i+1}"]`);
+          if (next) next.focus();
+        }
+      });
+
+      linesWrap.appendChild(code);
+      linesWrap.appendChild(cajas);
+    });
+
+    // foco en primera caja
+    const firstCaja = linesWrap.querySelector('input[data-role="cajas"][data-idx="0"]');
+    if (firstCaja) firstCaja.focus();
+  }
+
+  function getItemsFromModal(){
+    const codes = Array.from(linesWrap.querySelectorAll('input[data-role="codigo"]'));
+    return codes.map((c, i) => {
+      const cajasEl = linesWrap.querySelector(`input[data-role="cajas"][data-idx="${i}"]`);
+      const cajaStr = (cajasEl ? String(cajasEl.value || "").trim() : "");
+      return {
+        codigo: String(c.value || "").trim(),
+        caja: cajaStr
+      };
+    });
+  }
+
+  function sumCajas(items){
+    return items.reduce((acc, it) => acc + (Number(it.caja) || 0), 0);
+  }
+
+  function filterItemsToSend(items){
+    // ✅ solo líneas con caja > 0
+    return items.filter(it => (Number(it.caja) || 0) > 0);
+  }
+
+  // ===== UI events =====
+  enviar.onclick = async () => {
+    if (!ready()) return;
+
+    hideSuccess();
+
+    try{
+      enviar.disabled = true;
+      enviar.classList.remove("enabled");
+      status.className = "status";
+      status.textContent = "Buscando códigos en Supabase...";
+
+      const tallerista4 = cod.value;
+
+      fetchedCodes = await fetchCodesForTallerista(tallerista4);
+
+      buildModalLinesWithCodes(fetchedCodes);
+      openModalFn();
+
+    } catch (e){
+      console.error(e);
+      status.className = "status bad";
+      status.textContent = "Error trayendo códigos de Supabase.";
+    } finally {
+      enviar.disabled = !ready(); // vuelve a estado normal según validación
+      update();
+    }
+  };
+
+  closeModal.onclick = () => { if (!isSubmitting) closeModalFn(); };
+  cancelModal.onclick = () => { if (!isSubmitting) closeModalFn(); };
+
+  overlay.addEventListener("click", (e) => { if (!isSubmitting && e.target === overlay) closeModalFn(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && overlay.classList.contains("open") && !isSubmitting) closeModalFn(); });
+
+  // Respuesta GAS
+  iframe.addEventListener("load", () => {
+    if (!isSubmitting) return;
+
+    isSubmitting = false;
+
+    sendModal.disabled = false;
+    closeModal.disabled = false;
+    cancelModal.disabled = false;
+
+    update();
+
+    modalMsg.className = "status ok";
+    modalMsg.textContent = "Enviado a Sheet.";
+
+    status.className = "status ok";
+    status.textContent = "Enviado a Sheet.";
+
+    closeModalFn();
+
+    if (lastSendCode) showSuccess(lastSendCode);
+  });
+
+  sendModal.onclick = () => {
+    if (isSubmitting) return;
+
+    // si no hay códigos, no envíes
+    if (!fetchedCodes.length){
+      modalMsg.className = "status bad";
+      modalMsg.textContent = "No hay códigos para enviar.";
+      return;
+    }
+
+    const rawItems = getItemsFromModal();
+    const items = filterItemsToSend(rawItems);
+
+    if (items.length === 0){
+      modalMsg.className = "status bad";
+      modalMsg.textContent = "Completá al menos una caja (> 0).";
+      return;
+    }
+
+    const totalLineas = items.length;
+    const totalCajas = sumCajas(items);
+
+    const ok = confirm(`¿Está seguro con las cantidades?\n\nLíneas: ${totalLineas}\nTotal cajas: ${totalCajas}`);
+    if (!ok) return;
+
+    lastSendCode = genNumericCode(10);
+
+    const payload = {
+      fecha: arDateISO(),
+      empresa,
+      sucursal: SUCURSAL,
+      codTallProv: cod.value,
+      codigoEnvio: lastSendCode, // -> "Cod Envio" en Sheet
+      items
+    };
+
+    try{
+      isSubmitting = true;
+
+      sendModal.disabled = true;
+      closeModal.disabled = true;
+      cancelModal.disabled = true;
+
+      update();
+
+      modalMsg.className = "status";
+      modalMsg.textContent = "Enviando a Sheet...";
+
+      payloadField.value = JSON.stringify(payload);
+      sheetForm.submit();
+
+    } catch(e){
+      isSubmitting = false;
+
+      sendModal.disabled = false;
+      closeModal.disabled = false;
+      cancelModal.disabled = false;
+
+      update();
+
+      modalMsg.className = "status bad";
+      modalMsg.textContent = "Error enviando: " + (e?.message || e);
+    }
+  };
+
+  update();
+</script>
+</body>
+</html>
