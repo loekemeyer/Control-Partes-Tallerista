@@ -227,6 +227,7 @@
   let lastSendCode = null;
   let fetchedCodes = [];
   let proveedorNombre = "";
+  let proveedorValido = false;
 
   function selectEmpresa(v){
     empresa = v;
@@ -245,6 +246,8 @@
       await buscarTalleristaAutomatico();
     } else {
       fetchedCodes = [];
+      proveedorNombre = "";
+      proveedorValido = false;
       nombreTP.className = "status";
       nombreTP.textContent = "";
     }
@@ -255,7 +258,7 @@
   c1.onchange = update;
 
   function ready(){
-    return !isSubmitting && !!empresa && cod.value.length === 4 && c1.checked;
+    return !isSubmitting && !!empresa && cod.value.length === 4 && c1.checked && proveedorValido;
   }
 
   function update(){
@@ -323,6 +326,7 @@
     lastSendCode = null;
     fetchedCodes = [];
     proveedorNombre = "";
+    proveedorValido = false;
 
     sendModal.disabled = false;
     closeModal.disabled = false;
@@ -375,6 +379,8 @@
 
     if (tallerista4.length !== 4){
       fetchedCodes = [];
+      proveedorNombre = "";
+      proveedorValido = false;
       nombreTP.className = "status";
       nombreTP.textContent = "";
       return;
@@ -387,9 +393,13 @@
       fetchedCodes = await fetchCodesForTallerista(tallerista4);
 
       if (fetchedCodes.length){
+        proveedorValido = true;
         nombreTP.className = "status ok";
-        nombreTP.textContent = proveedorNombre || "Proveedor encontrado.";
+        nombreTP.textContent = proveedorNombre
+          ? `Nombre Tall/Prov: ${proveedorNombre}`
+          : "Nombre Tall/Prov: sin nombre cargado";
       } else {
+        proveedorValido = false;
         nombreTP.className = "status bad";
         nombreTP.textContent = "No hay un Tallerista/Proveedor con ese código.";
       }
@@ -397,6 +407,8 @@
     } catch(e){
       console.error(e);
       fetchedCodes = [];
+      proveedorNombre = "";
+      proveedorValido = false;
       nombreTP.className = "status bad";
       nombreTP.textContent = "Error consultando la base.";
     }
@@ -462,9 +474,12 @@
       const cajasEl = linesWrap.querySelector(`input[data-role="cajas"][data-idx="${i}"]`);
       const cajaStr = (cajasEl ? String(cajasEl.value || "").trim() : "");
 
+      const itemBase = fetchedCodes[i] || {};
+
       return {
         codigo: String(c.value || "").trim(),
-        caja: cajaStr
+        caja: cajaStr,
+        desc: String(itemBase.desc || "").trim()
       };
     });
   }
@@ -479,6 +494,11 @@
 
   // ===== UI events =====
   enviar.onclick = async () => {
+    if (!proveedorValido){
+      status.className = "status bad";
+      status.textContent = "No hay un proveedor válido para ese código.";
+      return;
+    }
     if (!ready()) return;
 
     hideSuccess();
@@ -557,10 +577,20 @@
       return;
     }
 
-    const totalLineas = items.length;
-    const totalCajas = sumCajas(items);
+    const codigoWidth = Math.max(...items.map(it => it.codigo.length), 6);
+    const cajaWidth = Math.max(...items.map(it => String(it.caja).length), 2);
 
-    const ok = confirm(`¿Está seguro con las cantidades?\n\nLíneas: ${totalLineas}\nTotal cajas: ${totalCajas}`);
+    const detalle = items
+      .map(it => {
+        const cod = it.codigo.padEnd(codigoWidth, " ");
+        const caja = String(it.caja).padStart(cajaWidth, " ");
+        return `${cod}   ${caja} caja/s   ${it.desc}`;
+      })
+      .join("\n");
+
+    const ok = confirm(
+      `¿Está seguro con las cantidades?\n\n${detalle}`
+    );
     if (!ok) return;
 
     lastSendCode = genNumericCode(10);
