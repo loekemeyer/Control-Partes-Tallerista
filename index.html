@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Recepción (test)</title>
+<title>Recepción Mercaderia</title>
 
 <style>
   *{box-sizing:border-box}
@@ -12,6 +12,7 @@
   .row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
   button{padding:10px 12px;border-radius:10px;border:2px solid #d0d7de;background:#fff;font-weight:800;cursor:pointer}
   button.active{background:#111;color:#fff;border-color:#111}
+  button:disabled{opacity:.45;cursor:not-allowed}
   input[type="text"],input[type="number"]{
     height:42px;border-radius:10px;border:2px solid #d0d7de;padding:0 10px;font-size:16px
   }
@@ -22,7 +23,6 @@
   .ok{color:#0a7a2f;font-weight:800}
   .bad{color:#b42318}
 
-  /* ===== Modal ===== */
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px}
   .overlay.open{display:flex}
   .modal{
@@ -35,6 +35,15 @@
     padding:14px;
     box-shadow:0 18px 50px rgba(0,0,0,.2);
   }
+
+  .grid{
+    display:grid;
+    grid-template-columns:110px 90px minmax(220px,1fr);
+    gap:10px;
+    align-items:center;
+  }
+  .grid .h{font-weight:900;font-size:13px;color:#333}
+
   .grid input[data-role="cajas"]{
     width:100% !important;
     min-width:0;
@@ -50,19 +59,10 @@
     word-break:break-word;
     overflow-wrap:anywhere;
   }
+
   .modal-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
   .modal-title{font-weight:900}
   .xbtn{border:2px solid #d0d7de;background:#fff;border-radius:10px;padding:8px 10px;cursor:pointer;font-weight:900}
-  .grid{
-    display:grid;
-    grid-template-columns:110px 90px minmax(220px,1fr);
-    gap:10px;
-    align-items:center;
-  }
-  .grid .h{font-weight:900;font-size:13px;color:#333}
-  .line{display:contents}
-  .line input[type="text"]{width:100%;text-align:left;letter-spacing:0}
-  .line input[type="number"]{width:100%}
   .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
   .btn-primary{background:#111;color:#fff;border:0}
   .btn-secondary{background:#fff}
@@ -70,10 +70,8 @@
 
   #sendModal:disabled, #enviar:disabled, #okBtn:disabled{opacity:.55; cursor:not-allowed}
 
-  /* form hidden */
   .hidden{display:none}
 
-  /* Success panel */
   .successBox{
     display:none;
     margin-top:12px;
@@ -94,7 +92,6 @@
     padding:10px 14px;border-radius:10px;font-weight:900;
   }
 
-  /* Readonly code styling */
   .codeRO{
     background:#f6f8fa;
     width:100% !important;
@@ -134,7 +131,6 @@
 
   <div id="status" class="status bad">Completá todo para continuar.</div>
 
-  <!-- ✅ Éxito + OK -->
   <div id="successBox" class="successBox">
     <div class="title">Envío registrado</div>
     <div>Tu código de envío:</div>
@@ -142,14 +138,12 @@
     <button id="okBtn" class="okBtn" type="button">OK</button>
   </div>
 
-  <!-- ✅ POST sin CORS: iframe + form oculto -->
   <iframe name="sheet_iframe" style="display:none"></iframe>
-  <form id="sheetForm" action="https://script.google.com/macros/s/AKfycbwm8qyUDOAlyb8WlP9chyxupv_xqp9_hs3jDiVLQDfrKCQtywl--tGKHuT-DMCtJDGO/exec" method="POST" target="sheet_iframe" class="hidden">
+  <form id="sheetForm" action="https://script.google.com/macros/s/AKfycbz3jZ7oahGOULPWKnTJGTTh_HIpLpyILu8tWkNHg6U_r5s7R3osFh3cQV5G7FUq8oXs/exec" method="POST" target="sheet_iframe" class="hidden">
     <input type="hidden" name="payload" id="payloadField" value="">
   </form>
 </div>
 
-<!-- ===== POPUP / MODAL ===== -->
 <div id="overlay" class="overlay" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-header">
@@ -157,7 +151,7 @@
       <button id="closeModal" class="xbtn" type="button">✕</button>
     </div>
 
-    <div class="grid headGrid" style="margin-bottom:8px">
+    <div class="grid" style="margin-bottom:8px">
       <div class="h">Código</div>
       <div class="h">Cajas</div>
       <div class="h">Descripción</div>
@@ -165,7 +159,7 @@
 
     <div id="lines" class="grid"></div>
 
-    <div class="hint">Tip: solo completá cajas (solo números).</div>
+    <div class="hint">Tip: completá solo cajas. Solo acepta números enteros.</div>
 
     <div class="modal-actions">
       <button id="cancelModal" class="xbtn btn-secondary" type="button">Cancelar</button>
@@ -176,18 +170,15 @@
   </div>
 </div>
 
-<!-- ✅ Supabase -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
 <script>
   // ===== Config =====
   const SUCURSAL = "Virg";
 
-  // ✅ Supabase
   const SUPABASE_URL = "https://hrxfctzncixxqmpfhskv.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_BqpAgZH6ty-9wft10_YMhw_0rcIPuWT";
 
-  // ✅ Tabla/columnas
   const SUPABASE_TABLE = "Articulos Virgilio X Tallerista";
   const COL_TALLERISTA = "Cod_Tallerista";
   const COL_CODIGO = "Cod_Art";
@@ -196,6 +187,7 @@
 
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+  // ===== DOM =====
   const lk = document.getElementById("lk");
   const ch = document.getElementById("ch");
   const cod = document.getElementById("codProveedor");
@@ -204,12 +196,10 @@
   const enviar = document.getElementById("enviar");
   const status = document.getElementById("status");
 
-  // success
   const successBox = document.getElementById("successBox");
   const successCodeEl = document.getElementById("successCode");
   const okBtn = document.getElementById("okBtn");
 
-  // modal
   const overlay = document.getElementById("overlay");
   const closeModal = document.getElementById("closeModal");
   const cancelModal = document.getElementById("cancelModal");
@@ -217,11 +207,11 @@
   const linesWrap = document.getElementById("lines");
   const modalMsg = document.getElementById("modalMsg");
 
-  // sheet form
   const sheetForm = document.getElementById("sheetForm");
   const payloadField = document.getElementById("payloadField");
   const iframe = document.querySelector('iframe[name="sheet_iframe"]');
 
+  // ===== Estado =====
   let empresa = null;
   let isSubmitting = false;
   let lastSendCode = null;
@@ -229,6 +219,7 @@
   let proveedorNombre = "";
   let proveedorValido = false;
 
+  // ===== Empresa =====
   function selectEmpresa(v){
     empresa = v;
     lk.classList.toggle("active", v === "LK");
@@ -239,8 +230,9 @@
   lk.onclick = () => selectEmpresa("LK");
   ch.onclick = () => selectEmpresa("CH");
 
+  // ===== Input código proveedor =====
   cod.oninput = async () => {
-    cod.value = cod.value.replace(/\D/g,"").slice(0,4);
+    cod.value = cod.value.replace(/\D/g, "").slice(0, 4);
 
     if (cod.value.length === 4){
       await buscarTalleristaAutomatico();
@@ -280,7 +272,7 @@
     return fmt.format(new Date());
   }
 
-  function genNumericCode(len = 10){
+  function genNumericCode(len = 4){
     const min = Math.pow(10, len - 1);
     const max = Math.pow(10, len) - 1;
     return String(Math.floor(min + Math.random() * (max - min + 1)));
@@ -312,6 +304,7 @@
     empresa = null;
     lk.classList.remove("active");
     ch.classList.remove("active");
+
     cod.value = "";
     nombreTP.textContent = "";
     nombreTP.className = "status";
@@ -338,7 +331,7 @@
 
   okBtn.onclick = () => resetAll();
 
-  // ===== Supabase fetch =====
+  // ===== Supabase =====
   async function fetchCodesForTallerista(tallerista4){
     const { data, error } = await sb
       .from(SUPABASE_TABLE)
@@ -414,6 +407,7 @@
     }
   }
 
+  // ===== Modal =====
   function buildModalLinesWithCodes(codes){
     linesWrap.innerHTML = "";
 
@@ -443,13 +437,13 @@
       cajas.setAttribute("data-idx", String(i));
 
       cajas.addEventListener("input", () => {
-        cajas.value = cajas.value.replace(/[^\d]/g, "");
+        cajas.value = cajas.value.replace(/\D/g, "");
       });
 
       cajas.addEventListener("keydown", (e) => {
         if (e.key === "Enter"){
           e.preventDefault();
-          const next = linesWrap.querySelector(`input[data-role="cajas"][data-idx="${i+1}"]`);
+          const next = linesWrap.querySelector(`input[data-role="cajas"][data-idx="${i + 1}"]`);
           if (next) next.focus();
         }
       });
@@ -467,38 +461,39 @@
     if (firstCaja) firstCaja.focus();
   }
 
-  function getItemsFromModal(){
-    const codes = Array.from(linesWrap.querySelectorAll('input[data-role="codigo"]'));
+ function getItemsFromModal(){
+  const codes = Array.from(linesWrap.querySelectorAll('input[data-role="codigo"]'));
 
-    return codes.map((c, i) => {
-      const cajasEl = linesWrap.querySelector(`input[data-role="cajas"][data-idx="${i}"]`);
-      const cajaStr = (cajasEl ? String(cajasEl.value || "").trim() : "");
+  return codes.map((c, i) => {
+    const cajasEl = linesWrap.querySelector(`input[data-role="cajas"][data-idx="${i}"]`);
+    const valor = cajasEl ? String(cajasEl.value || "").trim() : "";
+    const itemBase = fetchedCodes[i] || {};
 
-      const itemBase = fetchedCodes[i] || {};
+    return {
+      codigo: String(c.value || "").trim(),
+      kg: valor,
+      desc: String(itemBase.desc || "").trim()
+    };
+  });
+}
 
-      return {
-        codigo: String(c.value || "").trim(),
-        caja: cajaStr,
-        desc: String(itemBase.desc || "").trim()
-      };
+  function filterItemsToSend(items){
+    return items.filter(it => {
+      const valor = String(it.kg || "").trim();
+      if (valor === "") return false;
+      const n = Number(valor);
+      return !Number.isNaN(n) && n > 0;
     });
   }
 
-  function sumCajas(items){
-    return items.reduce((acc, it) => acc + (Number(it.caja) || 0), 0);
-  }
-
-  function filterItemsToSend(items){
-    return items.filter(it => (Number(it.caja) || 0) > 0);
-  }
-
-  // ===== UI events =====
+  // ===== UI =====
   enviar.onclick = async () => {
     if (!proveedorValido){
       status.className = "status bad";
       status.textContent = "No hay un proveedor válido para ese código.";
       return;
     }
+
     if (!ready()) return;
 
     hideSuccess();
@@ -526,22 +521,28 @@
     }
   };
 
-  closeModal.onclick = () => { if (!isSubmitting) closeModalFn(); };
-  cancelModal.onclick = () => { if (!isSubmitting) closeModalFn(); };
+  closeModal.onclick = () => {
+    if (!isSubmitting) closeModalFn();
+  };
+
+  cancelModal.onclick = () => {
+    if (!isSubmitting) closeModalFn();
+  };
 
   overlay.addEventListener("click", (e) => {
     if (!isSubmitting && e.target === overlay) closeModalFn();
   });
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && overlay.classList.contains("open") && !isSubmitting) closeModalFn();
+    if (e.key === "Escape" && overlay.classList.contains("open") && !isSubmitting) {
+      closeModalFn();
+    }
   });
 
   iframe.addEventListener("load", () => {
     if (!isSubmitting) return;
 
     isSubmitting = false;
-
     sendModal.disabled = false;
     closeModal.disabled = false;
     cancelModal.disabled = false;
@@ -577,36 +578,47 @@
       return;
     }
 
-    const codigoWidth = Math.max(...items.map(it => it.codigo.length), 6);
-    const cajaWidth = Math.max(...items.map(it => String(it.caja).length), 2);
+    const codigoWidth = Math.max(...items.map(it => it.codigo.length), "Código".length, 6);
+    const cajaWidth = Math.max(...items.map(it => String(it.kg).length), "Cajas".length, 2);
+
+    const header =
+      `${"Código".padEnd(codigoWidth, " ")}   ${"Cajas".padStart(cajaWidth, " ")}   Descripción`;
+
+    const separator =
+      `${"-".repeat(codigoWidth)}   ${"-".repeat(cajaWidth)}   ${"-".repeat(20)}`;
 
     const detalle = items
       .map(it => {
-        const cod = it.codigo.padEnd(codigoWidth, " ");
-        const caja = String(it.caja).padStart(cajaWidth, " ");
-        return `${cod}   ${caja} caja/s   ${it.desc}`;
+        const codTxt = it.codigo.padEnd(codigoWidth, " ");
+        const cajaTxt = String(it.kg).padStart(cajaWidth, " ");
+        return `${codTxt}   ${cajaTxt}   ${it.desc}`;
       })
       .join("\n");
 
     const ok = confirm(
-      `¿Está seguro con las cantidades?\n\n${detalle}`
+      `¿Está seguro de las cantidades?\n\n${header}\n${separator}\n${detalle}`
     );
     if (!ok) return;
 
-    lastSendCode = genNumericCode(10);
+    lastSendCode = genNumericCode(4);
 
-    const payload = {
-      fecha: arDateISO(),
-      empresa,
-      sucursal: SUCURSAL,
-      codTallProv: cod.value,
-      codigoEnvio: lastSendCode,
-      items
-    };
+const itemsToSend = items.map(it => ({
+  codigo: String(it.codigo || "").trim(),
+  kg: String(it.kg || "").trim(),
+  desc: String(it.desc || "").trim()
+}));
+
+const payload = {
+  fecha: arDateISO(),
+  empresa: empresa,
+  codTallProv: cod.value.trim(),
+  sucursal: SUCURSAL,
+  codigoEnvio: lastSendCode,
+  items: itemsToSend
+};
 
     try{
       isSubmitting = true;
-
       sendModal.disabled = true;
       closeModal.disabled = true;
       cancelModal.disabled = true;
@@ -621,7 +633,6 @@
 
     } catch(e){
       isSubmitting = false;
-
       sendModal.disabled = false;
       closeModal.disabled = false;
       cancelModal.disabled = false;
