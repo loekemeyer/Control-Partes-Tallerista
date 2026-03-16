@@ -138,10 +138,6 @@
     <button id="okBtn" class="okBtn" type="button">OK</button>
   </div>
 
-  <iframe name="sheet_iframe" style="display:none"></iframe>
-  <form id="sheetForm" action="https://script.google.com/macros/s/AKfycbz3jZ7oahGOULPWKnTJGTTh_HIpLpyILu8tWkNHg6U_r5s7R3osFh3cQV5G7FUq8oXs/exec" method="POST" target="sheet_iframe" class="hidden">
-    <input type="hidden" name="payload" id="payloadField" value="">
-  </form>
 </div>
 
 <div id="overlay" class="overlay" aria-hidden="true">
@@ -175,7 +171,8 @@
 <script>
   // ===== Config =====
   const SUCURSAL = "Virg";
-
+  const COL_TALLERISTA_NOMBRE = "Tallerista";
+  const SUPABASE_TABLE_ENTREGAS = "Entregas Tallerista Virgilio";
   const SUPABASE_URL = "https://hrxfctzncixxqmpfhskv.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_BqpAgZH6ty-9wft10_YMhw_0rcIPuWT";
 
@@ -207,9 +204,6 @@
   const linesWrap = document.getElementById("lines");
   const modalMsg = document.getElementById("modalMsg");
 
-  const sheetForm = document.getElementById("sheetForm");
-  const payloadField = document.getElementById("payloadField");
-  const iframe = document.querySelector('iframe[name="sheet_iframe"]');
 
   // ===== Estado =====
   let empresa = null;
@@ -471,20 +465,19 @@
 
     return {
       codigo: String(c.value || "").trim(),
-      kg: valor,
+      cajas: valor,
       desc: String(itemBase.desc || "").trim()
     };
   });
 }
-
   function filterItemsToSend(items){
-    return items.filter(it => {
-      const valor = String(it.kg || "").trim();
-      if (valor === "") return false;
-      const n = Number(valor);
-      return !Number.isNaN(n) && n > 0;
-    });
-  }
+   return items.filter(it => {
+     const valor = String(it.cajas || "").trim();
+     if (valor === "") return false;
+     const n = Number(valor);
+     return !Number.isNaN(n) && n > 0;
+   });
+ }
 
   // ===== UI =====
   enviar.onclick = async () => {
@@ -539,8 +532,71 @@
     }
   });
 
-  iframe.addEventListener("load", () => {
-    if (!isSubmitting) return;
+  
+
+  sendModal.onclick = async () => {
+  if (isSubmitting) return;
+
+  if (!fetchedCodes.length){
+    modalMsg.className = "status bad";
+    modalMsg.textContent = "No hay códigos para enviar.";
+    return;
+  }
+
+  const rawItems = getItemsFromModal();
+  const items = filterItemsToSend(rawItems);
+
+  if (items.length === 0){
+    modalMsg.className = "status bad";
+    modalMsg.textContent = "Completá al menos una caja (> 0).";
+    return;
+  }
+
+  const ok = confirm("¿Está seguro de las cantidades?");
+  if (!ok) return;
+
+  lastSendCode = genNumericCode(4);
+
+  const rowsToInsert = items.map(it => ({
+    Codigo_Tall: Number(cod.value.trim()),
+    Nombre_Tall: proveedorNombre || "",
+    Cod: String(it.codigo || "").trim(),
+    Cajas: Number(it.cajas || 0)
+  }));
+
+  try{
+    isSubmitting = true;
+    sendModal.disabled = true;
+    closeModal.disabled = true;
+    cancelModal.disabled = true;
+
+    update();
+
+    modalMsg.className = "status";
+    modalMsg.textContent = "Enviando a Supabase...";
+
+    const { error } = await sb
+      .from("Entregas Tallerista Virgilio")
+      .insert(rowsToInsert);
+
+    if (error) throw error;
+
+    isSubmitting = false;
+    sendModal.disabled = false;
+    closeModal.disabled = false;
+    cancelModal.disabled = false;
+
+    modalMsg.className = "status ok";
+    modalMsg.textContent = "Enviado a Supabase.";
+
+    status.className = "status ok";
+    status.textContent = "Enviado a Supabase.";
+
+    closeModalFn();
+    showSuccess(lastSendCode);
+
+  } catch(e){
+    console.error(e);
 
     isSubmitting = false;
     sendModal.disabled = false;
@@ -549,100 +605,10 @@
 
     update();
 
-    modalMsg.className = "status ok";
-    modalMsg.textContent = "Enviado a Sheet.";
-
-    status.className = "status ok";
-    status.textContent = "Enviado a Sheet.";
-
-    closeModalFn();
-
-    if (lastSendCode) showSuccess(lastSendCode);
-  });
-
-  sendModal.onclick = () => {
-    if (isSubmitting) return;
-
-    if (!fetchedCodes.length){
-      modalMsg.className = "status bad";
-      modalMsg.textContent = "No hay códigos para enviar.";
-      return;
-    }
-
-    const rawItems = getItemsFromModal();
-    const items = filterItemsToSend(rawItems);
-
-    if (items.length === 0){
-      modalMsg.className = "status bad";
-      modalMsg.textContent = "Completá al menos una caja (> 0).";
-      return;
-    }
-
-    const codigoWidth = Math.max(...items.map(it => it.codigo.length), "Código".length, 6);
-    const cajaWidth = Math.max(...items.map(it => String(it.kg).length), "Cajas".length, 2);
-
-    const header =
-      `${"Código".padEnd(codigoWidth, " ")}   ${"Cajas".padStart(cajaWidth, " ")}   Descripción`;
-
-    const separator =
-      `${"-".repeat(codigoWidth)}   ${"-".repeat(cajaWidth)}   ${"-".repeat(20)}`;
-
-    const detalle = items
-      .map(it => {
-        const codTxt = it.codigo.padEnd(codigoWidth, " ");
-        const cajaTxt = String(it.kg).padStart(cajaWidth, " ");
-        return `${codTxt}   ${cajaTxt}   ${it.desc}`;
-      })
-      .join("\n");
-
-    const ok = confirm(
-      `¿Está seguro de las cantidades?\n\n${header}\n${separator}\n${detalle}`
-    );
-    if (!ok) return;
-
-    lastSendCode = genNumericCode(4);
-
-const itemsToSend = items.map(it => ({
-  codigo: String(it.codigo || "").trim(),
-  kg: String(it.kg || "").trim(),
-  desc: String(it.desc || "").trim()
-}));
-
-const payload = {
-  fecha: arDateISO(),
-  empresa: empresa,
-  codTallProv: cod.value.trim(),
-  sucursal: SUCURSAL,
-  codigoEnvio: lastSendCode,
-  items: itemsToSend
+    modalMsg.className = "status bad";
+    modalMsg.textContent = "Error enviando: " + (e?.message || e);
+  }
 };
-
-    try{
-      isSubmitting = true;
-      sendModal.disabled = true;
-      closeModal.disabled = true;
-      cancelModal.disabled = true;
-
-      update();
-
-      modalMsg.className = "status";
-      modalMsg.textContent = "Enviando a Sheet...";
-
-      payloadField.value = JSON.stringify(payload);
-      sheetForm.submit();
-
-    } catch(e){
-      isSubmitting = false;
-      sendModal.disabled = false;
-      closeModal.disabled = false;
-      cancelModal.disabled = false;
-
-      update();
-
-      modalMsg.className = "status bad";
-      modalMsg.textContent = "Error enviando: " + (e?.message || e);
-    }
-  };
 
   update();
 </script>
