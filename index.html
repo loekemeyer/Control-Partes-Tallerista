@@ -180,6 +180,7 @@
   const COL_TALLERISTA = "Cod_Tallerista";
   const COL_CODIGO = "Cod_Art";
   const COL_DESC = "Desc";
+  const COL_LINEA = "Linea";
   
 
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -214,15 +215,20 @@
   let proveedorValido = false;
 
   // ===== Empresa =====
-  function selectEmpresa(v){
-    empresa = v;
-    lk.classList.toggle("active", v === "LK");
-    ch.classList.toggle("active", v === "CH");
-    update();
+  async function selectEmpresa(v){
+  empresa = v;
+  lk.classList.toggle("active", v === "LK");
+  ch.classList.toggle("active", v === "CH");
+
+  if (cod.value.length === 4){
+    await buscarTalleristaAutomatico();
   }
 
-  lk.onclick = () => selectEmpresa("LK");
-  ch.onclick = () => selectEmpresa("CH");
+  update();
+}
+
+  lk.onclick = async () => await selectEmpresa("LK");
+  ch.onclick = async () => await selectEmpresa("CH");
 
   // ===== Input código proveedor =====
   cod.oninput = async () => {
@@ -327,39 +333,42 @@
 
   // ===== Supabase =====
   async function fetchCodesForTallerista(tallerista4){
-    const { data, error } = await sb
-      .from(SUPABASE_TABLE)
-      .select(`${COL_CODIGO}, ${COL_DESC}, ${COL_TALLERISTA_NOMBRE}`)
-      .eq(COL_TALLERISTA, tallerista4)
-      .order(COL_CODIGO, { ascending: true });
-
-    if (error) throw error;
-
-    const uniques = [];
-    const seen = new Set();
-
-    proveedorNombre = "";
-
-    (data || []).forEach(r => {
-      const codigo = String(r[COL_CODIGO] ?? "").trim();
-      const desc = String(r[COL_DESC] ?? "").trim();
-      const talleristaNombre = String(r[COL_TALLERISTA_NOMBRE] ?? "").trim();
-
-      if (!proveedorNombre && talleristaNombre) {
-        proveedorNombre = talleristaNombre;
-      }
-
-      if (!codigo) return;
-
-      const key = codigo + "||" + desc;
-      if (seen.has(key)) return;
-
-      seen.add(key);
-      uniques.push({ codigo, desc });
-    });
-
-    return uniques;
-  }
+   const codNum = Number(String(tallerista4).trim());
+ 
+   const { data, error } = await sb
+     .from(SUPABASE_TABLE)
+     .select(`${COL_CODIGO}, ${COL_DESC}, ${COL_TALLERISTA_NOMBRE}, ${COL_LINEA}`)
+     .eq(COL_TALLERISTA, codNum)
+     .eq(COL_LINEA, empresa)
+     .order(COL_CODIGO, { ascending: true });
+ 
+   if (error) throw error;
+ 
+   const uniques = [];
+   const seen = new Set();
+ 
+   proveedorNombre = "";
+ 
+   (data || []).forEach(r => {
+     const codigo = String(r[COL_CODIGO] ?? "").trim();
+     const desc = String(r[COL_DESC] ?? "").trim();
+     const talleristaNombre = String(r[COL_TALLERISTA_NOMBRE] ?? "").trim();
+ 
+     if (!proveedorNombre && talleristaNombre) {
+       proveedorNombre = talleristaNombre;
+     }
+ 
+     if (!codigo) return;
+ 
+     const key = codigo + "||" + desc;
+     if (seen.has(key)) return;
+ 
+     seen.add(key);
+     uniques.push({ codigo, desc });
+   });
+ 
+   return uniques;
+ }
 
   async function buscarTalleristaAutomatico(){
     const tallerista4 = cod.value.trim();
